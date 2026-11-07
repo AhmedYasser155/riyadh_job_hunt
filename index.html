@@ -99,6 +99,9 @@ const navUrl=r=>"https://www.google.com/maps/dir/?api=1&destination="+r.lat+","+
 const ALL=[],IDX=new Map();
 for(const t of["dist","fact","supp"])for(const r of DATA[t]){const k=keyOf(r);let it=IDX.get(k);if(!it){it={...r,key:k,cats:[],X:r.lng*K,Y:-r.lat};IDX.set(k,it);ALL.push(it)}if(!it.cats.includes(t))it.cats.push(t);if(r.y)it.y=1}
 const MAPS=ALL.filter(i=>i.lat>24.3&&i.lat<25.1&&i.lng>46.3&&i.lng<47.3);
+let OV={};try{OV=JSON.parse(localStorage.getItem("vis2")||"{}")}catch(e){}
+ALL.forEach(i=>{if(i.key in OV)i.y=OV[i.key]});
+function toggleVisit(it){it.y=it.y?0:1;OV[it.key]=it.y;try{localStorage.setItem("vis2",JSON.stringify(OV))}catch(e){}changed()}
 let plan=new Set();try{plan=new Set(JSON.parse(localStorage.getItem("plan")||"[]").filter(k=>IDX.has(k)))}catch(e){}
 let cur="dist",vis=0,foc=null,GR=[],dayOf=new Map(),catOn={dist:1,fact:1,supp:1},selMode=false;
 const visOk=i=>vis===0||(vis===1)===!!i.y;
@@ -111,17 +114,17 @@ function changed(){savePlan();updTab();renderPlan();if(cur==="map"){draw();showI
 /* ---------- list ---------- */
 function render(){
   const term=q.value.trim().toLowerCase();
-  const rows=DATA[cur].filter(r=>(cur!=="supp"||visOk(r))&&(!term||(r.n+" "+r.a+" "+r.p).toLowerCase().includes(term)));
+  const rows=DATA[cur].filter(r=>visOk(IDX.get(keyOf(r)))&&(!term||(r.n+" "+r.a+" "+r.p).toLowerCase().includes(term)));
   list.replaceChildren();
   rows.forEach(r=>{
-    const li=el("li"),a=el("a","go"),nm=el("p","nm",r.n);
-    if(r.y)nm.appendChild(el("span","mark","تمت الزيارة"));
+    const it=IDX.get(keyOf(r)),li=el("li"),a=el("a","go"),nm=el("p","nm",r.n);
+    if(it.y)nm.appendChild(el("span","mark","تمت الزيارة"));
     a.href=navUrl(r);a.target="_blank";a.rel="noopener";
     a.append(nm,el("p","ad",r.a||"بدون عنوان مكتوب"),el("span","nav","ابدأ الملاحة على الخريطة"));
     const row=el("div","row");
     if(r.p){const t=el("a","tel",r.p);t.href="tel:"+r.p.replace(/[^+\d]/g,"");row.appendChild(t)}
-    const it=IDX.get(keyOf(r)),b=el("button","f",plan.has(it.key)?"في الخطة ✓":"＋ أضف للخطة");
-    b.setAttribute("aria-pressed",plan.has(it.key));b.onclick=()=>togglePlan(it);row.appendChild(b);
+    const b=el("button","f",plan.has(it.key)?"في الخطة ✓":"＋ أضف للخطة");
+    b.setAttribute("aria-pressed",plan.has(it.key));b.onclick=()=>togglePlan(it);const vb=el("button","f",it.y?"إلغاء علامة الزيارة":"✓ علّم: تمت الزيارة");vb.setAttribute("aria-pressed",!!it.y);vb.onclick=()=>toggleVisit(it);row.append(b,vb);
     li.append(a,row);list.appendChild(li);
   });
   if(!rows.length)list.appendChild(el("li","empty","لا توجد نتائج مطابقة"));
@@ -225,7 +228,7 @@ function showInfo(){
   const n=el("input");n.type="number";n.min=2;n.max=30;n.value=8;n.setAttribute("aria-label","العدد");
   const nb=el("button","f","أضف أقرب مجموعة منه");
   nb.onclick=()=>{const m=Math.max(2,Math.min(30,+n.value||8));pool().slice().sort((a,b)=>d2(a,it)-d2(b,it)).slice(0,m).forEach(i=>plan.add(i.key));changed()};
-  acts.append(go,tb,n,nb);box.appendChild(acts);
+  const vb=el("button","f",it.y?"إلغاء علامة الزيارة":"✓ علّم: تمت الزيارة");vb.onclick=()=>toggleVisit(it);acts.append(go,tb,vb,n,nb);box.appendChild(acts);
 }
 /* ---------- routing ---------- */
 function route(){
@@ -233,7 +236,7 @@ function route(){
   tabs.querySelectorAll("a").forEach(a=>a.setAttribute("aria-current",a.dataset.k===cur));
   const isMap=cur==="map";
   $("listView").hidden=isMap;$("mapView").hidden=!isMap;q.hidden=isMap;
-  $("vf").hidden=!(isMap||cur==="supp");
+  $("vf").hidden=false;
   $("vf").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",vis===+b.dataset.v));
   updTab();
   if(isMap){size();renderPlan();draw();showInfo()}else render();
